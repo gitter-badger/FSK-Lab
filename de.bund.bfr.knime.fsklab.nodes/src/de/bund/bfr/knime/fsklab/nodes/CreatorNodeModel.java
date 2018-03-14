@@ -73,6 +73,7 @@ import de.bund.bfr.knime.fsklab.rakip.Laboratory;
 import de.bund.bfr.knime.fsklab.rakip.ModelCategory;
 import de.bund.bfr.knime.fsklab.rakip.ModelMath;
 import de.bund.bfr.knime.fsklab.rakip.Parameter;
+import de.bund.bfr.knime.fsklab.rakip.Parameter.DataTypes;
 import de.bund.bfr.knime.fsklab.rakip.PopulationGroup;
 import de.bund.bfr.knime.fsklab.rakip.Scope;
 import de.bund.bfr.knime.fsklab.rakip.Study;
@@ -200,13 +201,42 @@ class CreatorNodeModel extends NoInternalsModel {
               }
 
               try {
-                REXP rexp = controller.eval(p.name, true);
-                if (rexp.isNumeric()) {
-                  p.value = Double.toString(rexp.asDouble());
-                  p.dataType = "Double";
-                }
-              } catch (RException | REXPMismatchException exception) {
+                  REXP rexp = controller.eval(p.name, true);
+                  //check the type for a Vector Or Matrix of String or number
+                  if(rexp.isVector() &&  rexp.dim() != null) {
+                    
+                    if(rexp.isNumeric()) {
+                      p.dataType = Parameter.DataTypes.MatrixOfNumbers;
+                     
+                      p.value = buildRVector(Arrays.asList(rexp.asDoubleMatrix()),true,false,0);
+                   
+                    }else {
+                      p.dataType = Parameter.DataTypes.MatrixOfStrings;
+                      p.value = buildRVector(Arrays.asList(rexp.asStrings()),true,true,rexp.dim().length);
+                    }
+                    
+                  }else if(rexp.isVector() &&  rexp.length()>1) {
+                    
+                    if(rexp.isNumeric()) {
+                      p.dataType = Parameter.DataTypes.VectorOfNumbers;
+                      p.value = buildRVector(Arrays.asList(rexp.asDoubles()),false,false,0);
+                    
+                    }else {
+                      p.dataType = Parameter.DataTypes.VectorOfStrings;
+                      p.value = buildRVector(Arrays.asList(rexp.asStrings()),false,true,0);
+                     
+                    }
+                    
+                  }
+                
+                  else if (rexp.isNumeric()) {
+                    p.value = Double.toString(rexp.asDouble());
+                    p.dataType = Parameter.DataTypes.Double;
+                    
+                  } 
+                }catch (RException | REXPMismatchException exception) {
                 // does nothing. Just leave the value blank.
+                  exception.printStackTrace();
                 LOGGER.warn("Could not parse value of parameter " + p.name, exception);
               }
             }
@@ -253,7 +283,65 @@ class CreatorNodeModel extends NoInternalsModel {
 
     return new PortObject[] {portObj};
   }
-
+  String buildRVector(final List ds,boolean isMatrix,Boolean isString, int length) {
+    if(!isMatrix) {
+      if(!isString) {
+        StringBuilder rVector = new StringBuilder();
+        rVector.append("c(");
+        int i = 1;
+        double[] o = (double[]) ds.get(0);
+        for(double d :o){
+          if(i == o.length) {
+            rVector.append(d+")");
+          }
+          else {
+            rVector.append(d+",");
+          }
+          i++;
+        }
+        return  rVector.toString();
+      }else {
+        StringBuilder rVector = new StringBuilder();
+        rVector.append("c(");
+        int i = 1;
+        for(Object d :ds){
+          if(i == ds.size()) {
+            rVector.append("'"+d+"')");
+          }
+          else {
+            rVector.append("'"+d+"',");
+          }
+          i++;
+        }
+        return  rVector.toString();
+      }
+    }else {
+      if(!isString) {
+        StringBuilder rMatrix = new StringBuilder();
+        rMatrix.append("matrix(   c(");
+        for(Object o :ds) {
+          double[] row = (double[])o;
+          for(double col : row) {
+            rMatrix.append(col+",");
+          }
+        }
+        String subStringOfrMatrix  = rMatrix.substring(0, rMatrix.length() - 1);
+        rMatrix = new StringBuilder(subStringOfrMatrix);
+        rMatrix.append("),   nrow="+ds.size()+",  ncol="+((double[])ds.get(0)).length+",    byrow = TRUE) ");
+        return rMatrix.toString();
+      }else {
+        StringBuilder rMatrix = new StringBuilder();
+        rMatrix.append("matrix(   c(");
+        for(Object o :ds) {
+          rMatrix.append("'"+o+"',");
+        }
+        String subStringOfrMatrix  = rMatrix.substring(0, rMatrix.length() - 1);
+        rMatrix = new StringBuilder(subStringOfrMatrix);
+        rMatrix.append("),   nrow="+length+",  ncol="+ds.size()/length+",    byrow = TRUE) ");
+        return rMatrix.toString();
+      }
+    }
+  }
   @Override
   protected PortObjectSpec[] configure(PortObjectSpec[] inSpecs) throws InvalidSettingsException {
     return new PortObjectSpec[] {FskPortObjectSpec.INSTANCE};
@@ -340,7 +428,7 @@ class CreatorNodeModel extends NoInternalsModel {
         param.name = depNames.get(i);
         param.unit = depUnits.get(i);
         param.unitCategory = "";
-        param.dataType = "";
+        param.dataType = DataTypes.Other;
 
         modelMath.parameter.add(param);
       }
@@ -357,7 +445,7 @@ class CreatorNodeModel extends NoInternalsModel {
         param.name = indepNames.get(i);
         param.unit = indepUnits.get(i);
         param.unitCategory = "";
-        param.dataType = "";
+        param.dataType = DataTypes.Other;
 
         modelMath.parameter.add(param);
       }
@@ -1109,7 +1197,13 @@ class CreatorNodeModel extends NoInternalsModel {
       param.type = getStringValue(sheet, row, RakipColumn.P);
       param.unit = getStringValue(sheet, row, RakipColumn.Q);
       param.unitCategory = getStringValue(sheet, row, RakipColumn.R);
-      param.dataType = getStringValue(sheet, row, RakipColumn.S);
+      String dataTypeAsString = getStringValue(sheet, row, RakipColumn.S);
+      try {
+        param.dataType = DataTypes.valueOf(dataTypeAsString);
+      }catch(IllegalArgumentException ex) {
+        param.dataType = DataTypes.Other;
+      }
+      
       param.source = getStringValue(sheet, row, RakipColumn.T);
       param.subject = getStringValue(sheet, row, RakipColumn.U);
       param.distribution = getStringValue(sheet, row, RakipColumn.V);
@@ -1649,7 +1743,13 @@ class CreatorNodeModel extends NoInternalsModel {
       param.type = values[row][RakipColumn.P.ordinal()];
       param.unit = values[row][RakipColumn.Q.ordinal()];
       param.unitCategory = values[row][RakipColumn.R.ordinal()];
-      param.dataType = values[row][RakipColumn.S.ordinal()];
+      
+      String dataTypeAsString = values[row][RakipColumn.S.ordinal()];
+      try {
+        param.dataType = DataTypes.valueOf(dataTypeAsString);
+      }catch(IllegalArgumentException ex) {
+        param.dataType = DataTypes.Other;
+      }
       param.source = values[row][RakipColumn.T.ordinal()];
       param.subject = values[row][RakipColumn.U.ordinal()];
       param.distribution = values[row][RakipColumn.V.ordinal()];

@@ -56,11 +56,11 @@ import de.bund.bfr.knime.fsklab.nodes.ui.FSpinner;
 import de.bund.bfr.knime.fsklab.nodes.ui.UIUtils;
 import de.bund.bfr.knime.fsklab.rakip.GenericModel;
 import de.bund.bfr.knime.fsklab.rakip.Parameter;
+import de.bund.bfr.knime.fsklab.rakip.Parameter.DataTypes;
 import de.bund.bfr.swing.UI;
 
 public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
-  public static String INTEGER_DATA_TYPES = "Integer";
-  public static String DOUBLE_DATA_TYPES = "Double";
+  
   private JList<SimulationEntity> list;
   private DefaultListModel<SimulationEntity> simulation_listModel;
   private JButton addButton;
@@ -246,15 +246,15 @@ public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
       FLabel paramLabel = new FLabel(param.name);
       Parameter fullParam = parameterMap.get(param.name);
       SpinnerNumberModel SpinnerModel = null;
-      if(fullParam.dataType!= null ) {
-        if(fullParam.dataType.equals(INTEGER_DATA_TYPES)) {
+      if(fullParam.dataType!= null && (fullParam.dataType.equals(DataTypes.Integer) ||fullParam.dataType.equals(DataTypes.Double)||fullParam.dataType.equals(DataTypes.Number ))) {
+        if(fullParam.dataType.equals(DataTypes.Integer)) {
           
           int min = (fullParam.minValue.equals("")?Integer.MIN_VALUE:Integer.parseInt(fullParam.minValue)); //Integer.parseInt(fullParam.minValue == ""?""+Integer.MIN_VALUE:fullParam.minValue);
           int max = (fullParam.maxValue.equals("")?Integer.MAX_VALUE:Integer.parseInt(fullParam.maxValue));//Integer.parseInt(fullParam.maxValue == ""?""+Integer.MAX_VALUE:fullParam.maxValue);
           SpinnerModel = new SpinnerNumberModel(Integer.parseInt(fullParam.value), min, max, 1);
      
         }
-        else if(fullParam.dataType.equals(DOUBLE_DATA_TYPES)){
+        else if(fullParam.dataType.equals(DataTypes.Double)){
           double min = (fullParam.minValue.equals("")?Integer.MIN_VALUE:Double.parseDouble(fullParam.minValue)); // Double.parseDouble(fullParam.minValue == ""?""+Double.MIN_VALUE:fullParam.minValue);
           double max = (fullParam.maxValue.equals("")?Integer.MAX_VALUE:Double.parseDouble(fullParam.maxValue));// Double.parseDouble(fullParam.maxValue == ""?""+Double.MAX_VALUE:fullParam.maxValue);
           SpinnerModel= new SpinnerNumberModel(Double.parseDouble(fullParam.value), min, max, 0.01);
@@ -283,7 +283,7 @@ public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
         paramField.putClientProperty("id", param.name);
         paramField
             .setEditable(!currentSimulation.getSimulationName().equals(NodeUtils.DEFAULT_SIMULATION));
-        paramField.addFocusListener(focusListener);
+       // paramField.addFocusListener(focusListener);
         paramField.addKeyListener(new SimulationParameterValueListener());
   
         paramLabel.setLabelFor(paramField);
@@ -301,10 +301,7 @@ public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
   
     simulationSettingPanel.add(northPanel,BorderLayout.CENTER);
   }
-  public boolean isNumeric(String dataType) {
-    
-    return dataType.equals(INTEGER_DATA_TYPES) || dataType.equals(DOUBLE_DATA_TYPES);
-  }
+ 
   class SimulationParameterValueListener implements KeyListener {
 
     @Override
@@ -316,7 +313,7 @@ public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
 
       for (Parameter param : currentSimulation.getSimulationParameters()) {
         if (param.name.equalsIgnoreCase((String) source.getClientProperty("id"))) {
-          if (param.dataType.equals("Integer")) {
+          if (param.dataType.equals(DataTypes.Integer)) {
 
             boolean notInteger = false;
             try {
@@ -331,7 +328,7 @@ public class SimulatorNodeDialog extends DataAwareNodeDialogPane {
               param.value = source.getText();
             }
 
-          } else if (param.dataType.equals("Double")) {
+          } else if (param.dataType.equals(DataTypes.Double)) {
 
             boolean notDouble = false;
             try {

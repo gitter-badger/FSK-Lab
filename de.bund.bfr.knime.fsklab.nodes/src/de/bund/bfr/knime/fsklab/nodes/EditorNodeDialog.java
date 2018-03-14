@@ -104,6 +104,7 @@ import de.bund.bfr.knime.fsklab.rakip.Product;
 import de.bund.bfr.knime.fsklab.rakip.Scope;
 import de.bund.bfr.knime.fsklab.rakip.Study;
 import de.bund.bfr.knime.fsklab.rakip.StudySample;
+import de.bund.bfr.knime.fsklab.rakip.Parameter.DataTypes;
 import de.bund.bfr.swing.AutoSuggestField;
 import ezvcard.Ezvcard;
 import ezvcard.VCard;
@@ -1540,7 +1541,12 @@ public class EditorNodeDialog extends DataAwareNodeDialogPane {
       param.type = (String) typeField.getSelectedItem();
       param.unit = (String) unitField.getSelectedItem();
       param.unitCategory = (String) unitCategoryField.getSelectedItem();
-      param.dataType = (String) dataTypeField.getSelectedItem();
+      String dataTypeAsString = (String) dataTypeField.getSelectedItem();
+      try {
+        param.dataType = DataTypes.valueOf(dataTypeAsString);
+      }catch(IllegalArgumentException ex) {
+        param.dataType = DataTypes.Other;
+      }
       param.source = (String) sourceField.getSelectedItem();
       param.subject = (String) subjectField.getSelectedItem();
       param.distribution = (String) distributionField.getSelectedItem();
@@ -3454,7 +3460,7 @@ public class EditorNodeDialog extends DataAwareNodeDialogPane {
         }
         parameters.add(param);
 
-        addRow(new String[] {param.id, param.name, param.unit, param.unitCategory, param.dataType});
+        addRow(new String[] {param.id, param.name, param.unit, param.unitCategory, param.dataType.toString()});
       }
 
       void modify(final int rowNumber, final Parameter param) {

@@ -25,7 +25,11 @@ public class Parameter {
   public static enum Classification {
     input, output, constant
   }
-
+  public static enum DataTypes {
+    Integer, Double, Number, Date, File, Boolean, VectorOfNumbers, VectorOfStrings, MatrixOfNumbers, MatrixOfStrings, Other, Object
+  }
+  
+  
   public String id = "";
 
   public Classification classification = Classification.constant;
@@ -40,7 +44,7 @@ public class Parameter {
 
   public String unitCategory = "";
 
-  public String dataType = "";
+  public DataTypes dataType ;
 
   public String source = "";
 
