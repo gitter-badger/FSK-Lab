@@ -130,9 +130,13 @@ class CreatorNodeModel extends NoInternalsModel {
         XSSFRow sh_row = sheet.createRow(r);
         for (DataCell cell : row) {
           String value = !cell.isMissing() ? ((StringCell) cell).getStringValue() : "";
-          XSSFCell sh_cell = sh_row.createCell(j);
-          
-          sh_cell.setCellValue(value);
+          XSSFCell sh_cell = sh_row.createCell(j); 
+          if(value != "")
+          {
+            
+            sh_cell.setCellValue(value);
+          }
+                       
           j++;
           }
         r++;
