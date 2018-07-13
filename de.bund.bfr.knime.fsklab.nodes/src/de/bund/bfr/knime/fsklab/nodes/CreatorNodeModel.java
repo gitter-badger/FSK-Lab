@@ -19,6 +19,7 @@
 package de.bund.bfr.knime.fsklab.nodes;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -111,7 +113,38 @@ class CreatorNodeModel extends NoInternalsModel {
 
   @Override
   protected void reset() {}
-
+  
+  private XSSFSheet convertTableToSheet(BufferedDataTable metadataTable)
+  throws Exception
+  {
+    try (XSSFWorkbook wb = new XSSFWorkbook()) {
+    
+      XSSFSheet sheet = wb.createSheet("sheet1") ;
+  
+  
+      int r = 0;
+      for (DataRow row : metadataTable) {
+        if (isRowEmpty(row))
+          break;
+        int j = 0;
+        XSSFRow sh_row = sheet.createRow(r);
+        for (DataCell cell : row) {
+          String value = !cell.isMissing() ? ((StringCell) cell).getStringValue() : "";
+          XSSFCell sh_cell = sh_row.createCell(j);
+          
+          sh_cell.setCellValue(value);
+          j++;
+          }
+        r++;
+        }
+          
+        wb.close();
+        return sheet;
+    }catch (Exception e) {
+      throw new Exception("Invalid metadata");
+    }//try catch
+  }
+  
   @Override
   protected PortObject[] execute(final PortObject[] inData, final ExecutionContext exec)
       throws InvalidSettingsException, IOException {
@@ -134,68 +167,50 @@ class CreatorNodeModel extends NoInternalsModel {
     final Scope scope;
     final DataBackground dataBackground;
     final ModelMath modelMath;
-
+    
+    XSSFSheet sheet = null;
     // If an input table is connected then parse the metadata
-    if (inData.length == 1 && inData[0] != null) {
-      BufferedDataTable metadataTable = (BufferedDataTable) inData[0];
-
-      // parse table
-      String[][] values = new String[200][30];
-      int i = 0;
-      for (DataRow row : metadataTable) {
-        if (isRowEmpty(row))
-          break;
-        int j = 0;
-        for (DataCell cell : row) {
-          values[i][j] = !cell.isMissing() ? ((StringCell) cell).getStringValue() : "";
-          j++;
-        }
-        i++;
-      }
-
-      generalInformation = TableParser.retrieveGeneralInformation(values);
-      scope = TableParser.retrieveScope(values);
-      dataBackground = TableParser.retrieveDataBackground(values);
-
-      modelMath = MetadataFactory.eINSTANCE.createModelMath();
-      for (i = 132; i <= 152; i++) {
-        try {
-          Parameter param = TableParser.retrieveParameter(values, i);
-          modelMath.getParameter().add(param);
-        } catch (Exception exception) {
-          exception.printStackTrace();
-        }
-      }
-    }
-
-    else {
-      // Reads model meta data
-      if (StringUtils.isEmpty(nodeSettings.spreadsheet)) {
-        throw new InvalidSettingsException("Model metadata is not provided");
-      }
-
-      final File metaDataFile = FileUtil.getFileFromURL(FileUtil.toURL(nodeSettings.spreadsheet));
-      try (XSSFWorkbook workbook = new XSSFWorkbook(metaDataFile)) {
-        final XSSFSheet sheet = workbook.getSheet(nodeSettings.sheet);
-
-        if (sheet.getPhysicalNumberOfRows() > 29) {
-          // Process new RAKIP spreadsheet
-          RAKIPSheetImporter importer = new RAKIPSheetImporter();
-          generalInformation = importer.retrieveGeneralInformation(sheet);
-          scope = importer.retrieveScope(sheet);
-          dataBackground = importer.retrieveDataBackground(sheet);
-          modelMath = importer.retrieveModelMath(sheet);
-        } else {
-          // Process legacy spreadsheet
-          generalInformation = LegacySheetImporter.getGeneralInformation(sheet);
-          scope = LegacySheetImporter.getScope(sheet);
-          dataBackground = MetadataFactory.eINSTANCE.createDataBackground();
-          modelMath = LegacySheetImporter.getModelMath(sheet);
-        }
-      } catch (IOException | InvalidFormatException e) {
+    if (inData.length == 1 && inData[0] != null)
+    {
+      
+      try
+      {
+        sheet = convertTableToSheet((BufferedDataTable) inData[0]);
+      }catch(Exception e)
+      {
         throw new InvalidSettingsException("Invalid metadata");
       }
-    }
+    }else 
+    {
+      // Reads model meta data
+        if (StringUtils.isEmpty(nodeSettings.spreadsheet)) {
+          throw new InvalidSettingsException("Model metadata is not provided");
+        }
+  
+        final File metaDataFile = FileUtil.getFileFromURL(FileUtil.toURL(nodeSettings.spreadsheet));
+        try (XSSFWorkbook workbook = new XSSFWorkbook(metaDataFile))
+        {
+          sheet = workbook.getSheet(nodeSettings.sheet);
+        }catch (IOException | InvalidFormatException e)
+        {
+          throw new InvalidSettingsException("Invalid metadata");
+        }
+    }  
+      if (sheet.getPhysicalNumberOfRows() > 29) {
+        // Process new RAKIP spreadsheet
+        RAKIPSheetImporter importer = new RAKIPSheetImporter();
+        generalInformation = importer.retrieveGeneralInformation(sheet);
+        scope = importer.retrieveScope(sheet);
+        dataBackground = importer.retrieveDataBackground(sheet);
+        modelMath = importer.retrieveModelMath(sheet);
+      } else {
+        // Process legacy spreadsheet
+        generalInformation = LegacySheetImporter.getGeneralInformation(sheet);
+        scope = LegacySheetImporter.getScope(sheet);
+        dataBackground = MetadataFactory.eINSTANCE.createDataBackground();
+        modelMath = LegacySheetImporter.getModelMath(sheet);
+      }
+   
 
     String modelScript = modelRScript.getScript();
     String vizScript = vizRScript != null ? vizRScript.getScript() : "";
@@ -420,6 +435,7 @@ class CreatorNodeModel extends NoInternalsModel {
       String languageWrittenIn =
           values[RakipRow.GENERAL_INFORMATION__LANGUAGE_WRITTEN_IN.num][RakipColumn.I.ordinal()];
       String status = values[RakipRow.GENERAL_INFORMATION__STATUS.num][RakipColumn.I.ordinal()];
+      
       String objective =
           values[RakipRow.GENERAL_INFORMATION__OBJECTIVE.num][RakipColumn.I.ordinal()];
       String description =
