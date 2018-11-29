@@ -9,4 +9,4 @@ deploy:
    skip_cleanup: true # to upload artifacts created during the build
    script: bash nightly.sh
    on:
-      branch: release
+      branch: nightly
